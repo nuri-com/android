@@ -32,6 +32,7 @@ import com.x8bit.bitwarden.data.auth.repository.util.toSdkParams
 import com.x8bit.bitwarden.data.auth.repository.util.userAccountTokens
 import com.x8bit.bitwarden.data.auth.repository.util.userSwitchingChangesFlow
 import com.x8bit.bitwarden.data.platform.error.NoActiveUserException
+import com.x8bit.bitwarden.data.platform.manager.policy.PasswordPolicyManager
 import com.x8bit.bitwarden.data.platform.repository.SettingsRepository
 import com.x8bit.bitwarden.data.platform.repository.model.VaultTimeout
 import com.x8bit.bitwarden.data.platform.repository.model.VaultTimeoutAction
@@ -93,6 +94,7 @@ class VaultLockManagerImpl(
     private val trustedDeviceManager: TrustedDeviceManager,
     private val kdfManager: KdfManager,
     private val pinProtectedUserKeyManager: PinProtectedUserKeyManager,
+    private val passwordPolicyManager: PasswordPolicyManager,
     dispatcherManager: DispatcherManager,
     context: Context,
 ) : VaultLockManager {
@@ -219,7 +221,7 @@ class VaultLockManagerImpl(
                             initializeCryptoResult
                                 .toVaultUnlockResult()
                                 .also {
-                                    hashAndStoreMasterPassword(
+                                    processMasterPassword(
                                         initUserCryptoMethod = initUserCryptoMethod,
                                         email = email,
                                         kdf = kdf,
@@ -251,29 +253,36 @@ class VaultLockManagerImpl(
 
     /**
      * Hashes a password and stores it as the master password hash for a given user.
+     * The password is also temporarily stored for validation against the Master Password policy.
      */
-    private suspend fun hashAndStoreMasterPassword(
+    private suspend fun processMasterPassword(
         initUserCryptoMethod: InitUserCryptoMethod,
         email: String,
         kdf: Kdf,
         userId: String,
     ) {
-        (initUserCryptoMethod as? InitUserCryptoMethod.MasterPasswordUnlock)?.let {
-            // Save the master password hash.
-            authSdkSource
-                .hashPassword(
-                    email = email,
-                    password = initUserCryptoMethod.password,
-                    kdf = kdf,
-                    purpose = HashPurpose.LOCAL_AUTHORIZATION,
-                )
-                .onSuccess {
-                    authDiskSource.storeMasterPasswordHash(
-                        userId = userId,
-                        passwordHash = it,
+        (initUserCryptoMethod as? InitUserCryptoMethod.MasterPasswordUnlock)
+            ?.password
+            ?.let { password ->
+                // Save the master password hash.
+                authSdkSource
+                    .hashPassword(
+                        email = email,
+                        password = password,
+                        kdf = kdf,
+                        purpose = HashPurpose.LOCAL_AUTHORIZATION,
                     )
-                }
-        }
+                    .onSuccess { passwordHash ->
+                        authDiskSource.storeMasterPasswordHash(
+                            userId = userId,
+                            passwordHash = passwordHash,
+                        )
+                    }
+                passwordPolicyManager.storePasswordToCheck(
+                    userId = userId,
+                    password = password,
+                )
+            }
     }
 
     override suspend fun waitUntilUnlocked(userId: String) {
@@ -347,6 +356,7 @@ class VaultLockManagerImpl(
             userId = userId,
             userAutoUnlockKey = null,
         )
+        passwordPolicyManager.removePasswordToCheck(userId = userId)
         if (!wasVaultLocked) {
             mutableVaultStateEventSharedFlow.tryEmit(VaultStateEvent.Locked(userId = userId))
             authDiskSource.storeLastLockTimestamp(
