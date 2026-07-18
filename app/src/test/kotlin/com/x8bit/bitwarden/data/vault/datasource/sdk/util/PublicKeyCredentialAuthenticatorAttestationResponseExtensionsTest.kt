@@ -108,7 +108,10 @@ private fun createMockSdkAttestationResponse(
     rawId = byteArrayOf(0),
     ty = "mockTy-$number",
     authenticatorAttachment = authenticatorAttachment,
-    clientExtensionResults = ClientExtensionResults(credProps),
+    clientExtensionResults = ClientExtensionResults(
+        credProps = credProps,
+        prf = null,
+    ),
     response = AuthenticatorAttestationResponse(
         clientDataJson = byteArrayOf(0),
         authenticatorData = byteArrayOf(0),

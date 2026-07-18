@@ -155,6 +155,7 @@ fun createMockSdkFido2Credential(
     number: Int,
     rpId: String = "mockRpId-$number",
     clock: Clock = FIXED_CLOCK,
+    extensionState: String? = null,
 ): Fido2Credential = Fido2Credential(
     credentialId = "mockCredentialId-$number",
     keyType = "mockKeyType-$number",
@@ -169,6 +170,7 @@ fun createMockSdkFido2Credential(
     userDisplayName = "mockUserDisplayName-$number",
     discoverable = "mockDiscoverable-$number",
     creationDate = clock.instant(),
+    extensionState = extensionState,
 )
 
 /**

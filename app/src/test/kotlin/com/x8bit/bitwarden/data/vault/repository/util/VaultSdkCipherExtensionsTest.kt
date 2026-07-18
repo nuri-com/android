@@ -13,6 +13,7 @@ import com.bitwarden.network.model.createMockCipherJsonRequest
 import com.bitwarden.network.model.createMockCipherMiniResponse
 import com.bitwarden.network.model.createMockDriversLicense
 import com.bitwarden.network.model.createMockField
+import com.bitwarden.network.model.createMockFido2Credential
 import com.bitwarden.network.model.createMockIdentity
 import com.bitwarden.network.model.createMockLogin
 import com.bitwarden.network.model.createMockPassport
@@ -34,6 +35,7 @@ import com.x8bit.bitwarden.data.vault.datasource.sdk.model.createMockSdkBankAcco
 import com.x8bit.bitwarden.data.vault.datasource.sdk.model.createMockSdkCard
 import com.x8bit.bitwarden.data.vault.datasource.sdk.model.createMockSdkCipher
 import com.x8bit.bitwarden.data.vault.datasource.sdk.model.createMockSdkField
+import com.x8bit.bitwarden.data.vault.datasource.sdk.model.createMockSdkFido2Credential
 import com.x8bit.bitwarden.data.vault.datasource.sdk.model.createMockSdkIdentity
 import com.x8bit.bitwarden.data.vault.datasource.sdk.model.createMockSdkLogin
 import com.x8bit.bitwarden.data.vault.datasource.sdk.model.createMockSdkPasswordHistory
@@ -138,6 +140,58 @@ class VaultSdkCipherExtensionsTest {
             createMockSdkLogin(number = 1, clock = FIXED_CLOCK),
             sdkLogin,
         )
+    }
+
+    @Test
+    fun `encrypted FIDO2 credential should survive SDK sync round trip unchanged`() {
+        val extensionState = "2.mockEncryptedExtensionState-40"
+        val networkCredential = createMockFido2Credential(
+            number = 40,
+            extensionState = extensionState,
+        )
+        val networkCipher = createMockCipher(
+            number = 40,
+            login = createMockLogin(
+                number = 40,
+                fido2Credentials = listOf(networkCredential),
+            ),
+        )
+
+        val result = networkCipher
+            .toEncryptedSdkCipher()
+            .toEncryptedNetworkCipherResponse(encryptedFor = "mockEncryptedFor-40")
+            .login
+            ?.fido2Credentials
+            .orEmpty()
+            .single()
+
+        assertEquals(networkCredential, result)
+    }
+
+    @Test
+    fun `toEncryptedNetworkCipher should preserve encrypted FIDO2 extension state`() {
+        val extensionState = "2.mockEncryptedExtensionState-40"
+        val sdkCredential = createMockSdkFido2Credential(
+            number = 40,
+            extensionState = extensionState,
+        )
+        val sdkCipher = createMockSdkCipher(number = 40, clock = FIXED_CLOCK).copy(
+            login = createMockSdkLogin(number = 40, clock = FIXED_CLOCK).copy(
+                fido2Credentials = listOf(sdkCredential),
+            ),
+        )
+
+        val result = sdkCipher
+            .toEncryptedNetworkCipher(encryptedFor = "mockEncryptedFor-40")
+            .login
+            ?.fido2Credentials
+            .orEmpty()
+            .single()
+
+        assertEquals(extensionState, result.extensionState)
+        assertEquals("mockCredentialId-40", result.credentialId)
+        assertEquals("mockKeyValue-40", result.keyValue)
+        assertEquals("mockCounter-40", result.counter)
     }
 
     @Test

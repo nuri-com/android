@@ -19,6 +19,7 @@ fun createMockPublicKeyAttestationResponse(number: Int) =
             credProps = CredPropsResult(
                 rk = true,
             ),
+            prf = null,
         ),
         response = AuthenticatorAttestationResponse(
             clientDataJson = "mockClientDataJson".toByteArray(),

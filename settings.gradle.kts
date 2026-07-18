@@ -26,10 +26,11 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         maven {
-            name = "GitHubPackages (Bitwarden)"
-            url = uri("https://maven.pkg.github.com/bitwarden/sdk")
+            name = "GitHubPackages (Nuri SDK)"
+            url = uri("https://maven.pkg.github.com/nuri-com/sdk-internal")
             credentials {
-                username = ""
+                username = userProperties["gitHubUsername"] as String?
+                    ?: System.getenv("GITHUB_ACTOR")
                 password = userProperties["gitHubToken"] as String? ?: System.getenv("GITHUB_TOKEN")
             }
         }
