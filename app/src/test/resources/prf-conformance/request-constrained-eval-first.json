@@ -1,0 +1,19 @@
+{
+  "challenge": "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8",
+  "rpId": "nuri.com",
+  "allowCredentials": [
+    {
+      "type": "public-key",
+      "id": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+      "transports": ["internal"]
+    }
+  ],
+  "userVerification": "required",
+  "extensions": {
+    "prf": {
+      "eval": {
+        "first": "bnVyaS1wcmYtc2FsdC12MQ"
+      }
+    }
+  }
+}
