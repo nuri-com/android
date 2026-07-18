@@ -147,7 +147,7 @@ Constrained shape, required fields for PRF:
   "extensions": {
     "prf": {
       "eval": {
-        "first": "<base64url 32-byte salt>"
+        "first": "bnVyaS1wcmYtc2FsdC12MQ"
       }
     }
   }
@@ -178,7 +178,7 @@ The provider must not silently fall back to a non-PRF assertion when `allowCrede
   "extensions": {
     "prf": {
       "eval": {
-        "first": "<base64url 32-byte salt>"
+        "first": "bnVyaS1wcmYtc2FsdC12MQ"
       }
     }
   }
@@ -239,8 +239,8 @@ Required PRF-bearing response shape (target):
     "credProps": { "rk": true },
     "prf": {
       "results": {
-        "first": "<base64url 32-byte PRF output for first salt>",
-        "second": "<base64url 32-byte PRF output for second salt, optional>"
+        "first": "<base64url 32-byte PRF output for first input>",
+        "second": "<base64url 32-byte PRF output for second input, optional>"
       }
     }
   }
@@ -251,7 +251,7 @@ Encoding rules (already enforced by the existing extension functions):
 
 - All `ByteArray` fields are base64url-encoded with `Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING`.
 - No trailing `=` padding, no newlines.
-- The provider must not re-encode, hex-encode, or otherwise transform PRF outputs. The 32-byte PRF result for `nuri-prf-salt-v1` must reach Nuri byte-for-byte as the SDK produced it.
+- The provider must not re-encode, hex-encode, or otherwise transform PRF outputs. The 32-byte PRF result for the raw `nuri-prf-salt-v1` input must reach Nuri byte-for-byte as the SDK produced it.
 
 ### 3.4 Attestation (create) request and response
 
@@ -263,23 +263,25 @@ PRF (the WebAuthn `prf` extension) maps to the CTAP 2.1 `hmac-secret` extension.
 
 ### 4.1 Request-side `extensions.prf`
 
-The WebAuthn `prf` extension input has two mutually exclusive top-level shapes:
+The WebAuthn `prf` extension input supports two top-level fields:
 
-- `prf.eval`: evaluate PRF for a single salt. The provider returns `prf.results.first`.
-- `prf.evalByCredential`: evaluate PRF for a per-credential salt map. Keyed by credential ID (base64url). The provider selects the entry matching the asserted credential and treats it as `first`.
+- `prf.eval`: default inputs for PRF evaluation.
+- `prf.evalByCredential`: per-credential inputs, keyed by credential ID (base64url). A matching entry takes precedence over `eval`; `eval` is the fallback when no entry matches.
 
 Inside either shape:
 
-- `first`: base64url-encoded salt, 32 or more bytes. Required. Drives `prf.results.first`.
-- `second`: base64url-encoded salt, 32 or more bytes. Optional. When present, the provider must also return `prf.results.second`.
+- `first`: a base64url-encoded opaque byte string of any length. Required. Drives `prf.results.first`.
+- `second`: a base64url-encoded opaque byte string of any length. Optional. When present, the provider must also return `prf.results.second`.
 
-For Nuri the salt is fixed: `first = "nuri-prf-salt-v1"` (UTF-8 bytes, no `second`). See `docs/nuri-prf-contract.md` in the coordination repo. Nuri does not currently use `evalByCredential`; it uses `eval.first` with a discoverable or constrained request.
+Per [WebAuthn Level 3 PRF client-extension processing](https://www.w3.org/TR/webauthn-3/#prf-extension), the raw client input is not the authenticator salt. For each `first` or `second` value, the WebAuthn client-processing layer derives the fixed 32-byte authenticator salt as `SHA-256(UTF8Encode("WebAuthn PRF") || 0x00 || input)`. The PRF result is also 32 bytes. These are three distinct values: arbitrary-length raw input, 32-byte domain-separated authenticator salt, and 32-byte PRF output.
+
+For Nuri the raw input is fixed: `first = UTF8("nuri-prf-salt-v1")`, exactly 16 bytes, base64url `bnVyaS1wcmYtc2FsdC12MQ`, with no `second`. See `docs/nuri-prf-contract.md` in the coordination repo. Nuri does not currently use `evalByCredential`; it uses `eval.first` with a discoverable or constrained request.
 
 The Android provider must:
 
 - Preserve the `extensions.prf` JSON from `GetPublicKeyCredentialOption.requestJson` and hand it to the SDK through the request JSON envelope (`{"publicKey": <requestJson>}`). The current code in `BitwardenCredentialManagerImpl.authenticateFido2Credential` already wraps the request this way; PRF inputs inside `extensions.prf` must survive that wrap unchanged.
-- Not strip, rename, or re-encode the PRF salts. Salts are opaque byte strings; the provider must not assume they are printable.
-- Not surface PRF salts to the begin-phase entry list. `BeginGetPublicKeyCredentialOption.requestJson` is reachable at begin time but PRF must not be evaluated or exposed there.
+- Not strip, rename, re-encode, or pre-hash the raw PRF inputs. The shared evaluator performs the WebAuthn domain-separation mapping after receiving the unchanged request JSON; the Android provider must not mutate or drop that JSON.
+- Not surface raw PRF inputs to the begin-phase entry list. `BeginGetPublicKeyCredentialOption.requestJson` is reachable at begin time but PRF must not be evaluated or exposed there.
 
 ### 4.2 Response-side `clientExtensionResults.prf`
 
@@ -307,11 +309,11 @@ Rules:
 
 | Field | Request side | Response side | Required? | Notes |
 | --- | --- | --- | --- | --- |
-| `prf.eval` | Object with `first`, optional `second` | — | One of `eval`/`evalByCredential` required to enable PRF | Single-salt shape |
-| `prf.evalByCredential` | Map of credentialId → `{first, second?}` | — | One of `eval`/`evalByCredential` required | Per-credential salt; provider selects the entry for the asserted credential |
-| `prf.eval.first` / `evalByCredential[*].first` | base64url salt ≥32 bytes | — | Required | Drives `results.first` |
-| `prf.eval.second` / `evalByCredential[*].second` | base64url salt ≥32 bytes | — | Optional | Drives `results.second` |
-| `prf.results.first` | — | base64url 32-byte output | Required when PRF requested and UV ok | Never cached, never persisted |
+| `prf.eval` | Object with `first`, optional `second` | — | One of `eval`/`evalByCredential` required to enable PRF | Default input shape |
+| `prf.evalByCredential` | Map of credentialId → `{first, second?}` | — | One of `eval`/`evalByCredential` required | Per-credential inputs; provider selects the entry for the asserted credential |
+| `prf.eval.first` / `evalByCredential[*].first` | base64url opaque input of any length | — | Required | Domain-separated and SHA-256 mapped by WebAuthn; drives `results.first` |
+| `prf.eval.second` / `evalByCredential[*].second` | base64url opaque input of any length | — | Optional | Domain-separated and SHA-256 mapped by WebAuthn; drives `results.second` |
+| `prf.results.first` | — | base64url 32-byte output | Required when PRF requested and effective UV succeeds | Never cached, never persisted |
 | `prf.results.second` | — | base64url 32-byte output | Required iff request had `second` | Same lifetime as `first` |
 
 ## 5. User verification (UV) semantics
@@ -325,10 +327,12 @@ Rules:
 For the Nuri wallet recovery case UV is **required** (see `docs/nuri-prf-contract.md`: "User verification: Required for wallet unlock"). The provider must enforce:
 
 1. **Pre-verification flag**. `CredentialProviderViewModel` sets `bitwardenCredentialManager.isUserVerified = request.isUserPreVerified` from `Fido2CredentialAssertionRequest.isUserPreVerified`. The OS biometric prompt that the system shows when the user taps a credential entry is the source of this flag. The SDK receives `isUserVerificationSupported = true` unconditionally in `BitwardenCredentialManagerImpl.authenticateFido2Credential`. UV state is a gate, not a hint.
-2. **UV required implies fail-closed**. When `userVerification == REQUIRED` and the user is not verified (either pre-verified flag is false or the in-app biometric prompt is cancelled), the provider must not evaluate PRF and must not return an assertion. The current `MAX_AUTHENTICATION_ATTEMPTS = 5` cap in `BitwardenCredentialManagerImpl` bounds retries; exceeding it must surface a hard error, not a fallback to UV-discouraged behavior.
-3. **UV selects the HMAC seed**. Per the shared evaluator contract, the provider must use the user-verified HMAC seed when UV was performed, and the non-user-verified HMAC seed when it was not. For Nuri, UV is always required, so the user-verified seed is the only one that may be used. The Android provider does not select the seed directly; the SDK does. The provider's job is to propagate the correct `isUserVerificationSupported` and `isUserPreVerified` flags so the SDK can select correctly.
+2. **Effective UV implies fail-closed**. A PRF request makes UV effective even when the request says `preferred` or `discouraged`. If the user is not verified (either the pre-verified flag is false or the in-app biometric prompt is cancelled), the provider must not evaluate PRF and must not return an assertion for that PRF request. The current `MAX_AUTHENTICATION_ATTEMPTS = 5` cap in `BitwardenCredentialManagerImpl` bounds retries; exceeding it must surface a hard error, not a fallback to non-UV behavior.
+3. **WebAuthn PRF uses only the UV HMAC function**. CTAP `hmac-secret` has UV and non-UV functions, but WebAuthn exposes only one PRF and requires the user-verified function. The shared evaluator must therefore select `credentialWithUV`; `credentialWithoutUV` must never produce `AuthenticationExtensionsPRFOutputs.results`. The Android provider does not select the function directly; it propagates the UV state needed for the SDK to enforce this rule.
 4. **Discoverable + UV required**. The discoverable case must not weaken UV. A discoverable request with `userVerification == REQUIRED` must still enforce UV before any credential is surfaced for assertion. The begin phase may return `AuthenticationAction` (unlock prompt) when the vault is locked (`CredentialProviderProcessorImpl.processGetCredentialRequest`), but that is a vault-unlock gate, not a UV gate. The UV gate is enforced in the provider phase.
-5. **`userVerification == DISCOURAGED` and PRF**. PRF with UV discouraged is not a valid Nuri configuration. The provider must not silently downgrade: if the request asks for PRF and UV is discouraged, the provider must fail closed rather than evaluating PRF against the non-UV seed. This is stricter than the WebAuthn spec because Nuri treats PRF output as wallet root material.
+5. **Preferred or discouraged PRF requests**. WebAuthn PRF overrides the requested preference when necessary: the provider must make UV effective or fail closed. It must never satisfy a PRF request with the non-UV HMAC function.
+
+A CXF-imported passkey carries both `credentialWithUV` and `credentialWithoutUV` as portable credential state, and import must preserve both. Preservation is not WebAuthn selection: `credentialWithoutUV` remains available for CXF portability or direct CTAP use, but it must never become a WebAuthn `AuthenticationExtensionsPRFOutputs.results` value.
 
 ## 6. Constrained vs discoverable — provider behavior matrix
 
@@ -336,7 +340,7 @@ For the Nuri wallet recovery case UV is **required** (see `docs/nuri-prf-contrac
 | --- | --- | --- | --- | --- | --- |
 | Nuri recovery, known credential ID | non-empty | `nuri.com` | `eval.first = "nuri-prf-salt-v1"` | `required` | Filter discovered credentials to the allowed IDs, UV-gate, evaluate PRF, return `prf.results.first`. |
 | Nuri recovery, fresh install | null/empty | `nuri.com` | `eval.first = "nuri-prf-salt-v1"` | `required` | Discover all credentials for `rpId`, UV-gate, evaluate PRF for the selected credential, return `prf.results.first`. Bind the assertion to the selected credential. |
-| PRF requested, no UV | any | any | present | `discouraged` | Fail closed. Do not evaluate PRF. |
+| PRF requested, preference is not required | any | any | present | `preferred`/`discouraged` | Make UV effective and evaluate only the UV PRF function, or fail closed. Never fall back to the non-UV function. |
 | PRF requested, UV failed | any | any | present | `required` | Fail closed. Do not evaluate PRF. Surface `GetCredentialUnknownException` or SDK error. |
 | No PRF in request | any | any | absent | any | Existing behavior. Do not add `prf` to `clientExtensionResults`. |
 | Credential with no HMAC seed state | any | any | present | any | Fail closed. Do not synthesize a PRF output. |
