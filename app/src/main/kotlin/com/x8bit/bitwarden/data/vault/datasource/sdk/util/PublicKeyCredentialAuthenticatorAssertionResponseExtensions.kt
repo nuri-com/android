@@ -28,6 +28,14 @@ fun PublicKeyCredentialAuthenticatorAssertionResponse.toAndroidFido2PublicKeyCre
                         residentKey = credProps.rk ?: true,
                     )
             },
+            prf = clientExtensionResults.prf?.results?.let { results ->
+                Fido2PublicKeyCredential.ClientExtensionResults.Prf(
+                    results = Fido2PublicKeyCredential.ClientExtensionResults.Prf.Results(
+                        first = results.first.base64EncodeForFido2Response(),
+                        second = results.second?.base64EncodeForFido2Response(),
+                    ),
+                )
+            },
         ),
     )
 

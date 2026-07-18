@@ -3,15 +3,25 @@ package com.x8bit.bitwarden.data.vault.datasource.sdk.util
 import android.util.Base64
 import com.bitwarden.fido.AuthenticatorAssertionResponse
 import com.bitwarden.fido.ClientExtensionResults
+import com.bitwarden.fido.ClientPrfOutput
 import com.bitwarden.fido.CredPropsResult
+import com.bitwarden.fido.PrfOutputValues
 import com.bitwarden.fido.PublicKeyCredentialAuthenticatorAssertionResponse
 import com.bitwarden.fido.SelectedCredential
+import com.x8bit.bitwarden.data.credentials.model.Fido2PublicKeyCredential
 import com.x8bit.bitwarden.data.vault.datasource.sdk.model.createMockCipherView
 import com.x8bit.bitwarden.data.vault.datasource.sdk.model.createMockFido2CredentialView
 import io.mockk.every
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
+import io.mockk.verify
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -23,7 +33,13 @@ class PublicKeyCredentialAuthenticatorAssertionResponseExtensionsTest {
     @BeforeEach
     fun setUp() {
         mockkStatic(Base64::class)
-        every { Base64.encodeToString(any(), any()) } returns ""
+        every { Base64.encodeToString(any(), any()) } answers {
+            when {
+                firstArg<ByteArray>().contentEquals(PRF_FIRST_OUTPUT) -> ENCODED_PRF_FIRST_OUTPUT
+                firstArg<ByteArray>().contentEquals(PRF_SECOND_OUTPUT) -> ENCODED_PRF_SECOND_OUTPUT
+                else -> ""
+            }
+        }
     }
 
     @AfterEach
@@ -78,12 +94,70 @@ class PublicKeyCredentialAuthenticatorAssertionResponseExtensionsTest {
         val result = mockSdkResponse.toAndroidFido2PublicKeyCredential()
         assertTrue(result.clientExtensionResults.credentialProperties?.residentKey!!)
     }
+
+    @Test
+    fun `prf should be omitted when SDK result is absent`() {
+        val result = createMockSdkAssertionResponse(
+            number = 1,
+            prf = ClientPrfOutput(enabled = null, results = null),
+        ).toAndroidFido2PublicKeyCredential()
+
+        assertNull(result.clientExtensionResults.prf)
+        assertFalse(result.serializedClientExtensionResults().containsKey("prf"))
+    }
+
+    @Test
+    fun `prf should serialize the first result as unpadded base64url`() {
+        val result = createMockSdkAssertionResponse(
+            number = 1,
+            prf = ClientPrfOutput(
+                enabled = null,
+                results = PrfOutputValues(first = PRF_FIRST_OUTPUT, second = null),
+            ),
+        ).toAndroidFido2PublicKeyCredential()
+
+        val results = result.serializedPrfResults()
+        assertEquals(setOf("first"), results.keys)
+        assertEquals(ENCODED_PRF_FIRST_OUTPUT, results.getValue("first").jsonPrimitive.content)
+        verify(exactly = 1) {
+            Base64.encodeToString(
+                match { it.contentEquals(PRF_FIRST_OUTPUT) },
+                FIDO2_BASE64_FLAGS,
+            )
+        }
+    }
+
+    @Test
+    fun `prf should serialize both results as unpadded base64url`() {
+        val result = createMockSdkAssertionResponse(
+            number = 1,
+            prf = ClientPrfOutput(
+                enabled = null,
+                results = PrfOutputValues(
+                    first = PRF_FIRST_OUTPUT,
+                    second = PRF_SECOND_OUTPUT,
+                ),
+            ),
+        ).toAndroidFido2PublicKeyCredential()
+
+        val results = result.serializedPrfResults()
+        assertEquals(setOf("first", "second"), results.keys)
+        assertEquals(ENCODED_PRF_FIRST_OUTPUT, results.getValue("first").jsonPrimitive.content)
+        assertEquals(ENCODED_PRF_SECOND_OUTPUT, results.getValue("second").jsonPrimitive.content)
+        verify(exactly = 1) {
+            Base64.encodeToString(
+                match { it.contentEquals(PRF_SECOND_OUTPUT) },
+                FIDO2_BASE64_FLAGS,
+            )
+        }
+    }
 }
 
 private fun createMockSdkAssertionResponse(
     number: Int,
     authenticatorAttachment: String? = null,
     credProps: CredPropsResult? = null,
+    prf: ClientPrfOutput? = null,
 ) = PublicKeyCredentialAuthenticatorAssertionResponse(
     id = "mockId-$number",
     rawId = byteArrayOf(0),
@@ -91,7 +165,7 @@ private fun createMockSdkAssertionResponse(
     authenticatorAttachment = authenticatorAttachment,
     clientExtensionResults = ClientExtensionResults(
         credProps = credProps,
-        prf = null,
+        prf = prf,
     ),
     response = AuthenticatorAssertionResponse(
         clientDataJson = byteArrayOf(0),
@@ -104,3 +178,22 @@ private fun createMockSdkAssertionResponse(
         credential = createMockFido2CredentialView(number = 1),
     ),
 )
+
+private fun Fido2PublicKeyCredential.serializedClientExtensionResults() = RESPONSE_JSON
+    .parseToJsonElement(RESPONSE_JSON.encodeToString(this))
+    .jsonObject
+    .getValue("clientExtensionResults")
+    .jsonObject
+
+private fun Fido2PublicKeyCredential.serializedPrfResults() = serializedClientExtensionResults()
+    .getValue("prf")
+    .jsonObject
+    .getValue("results")
+    .jsonObject
+
+private val RESPONSE_JSON = Json { explicitNulls = false }
+private val PRF_FIRST_OUTPUT = byteArrayOf(1, 2)
+private val PRF_SECOND_OUTPUT = byteArrayOf(3, 4)
+private const val ENCODED_PRF_FIRST_OUTPUT = "AQI"
+private const val ENCODED_PRF_SECOND_OUTPUT = "AwQ"
+private const val FIDO2_BASE64_FLAGS = Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING
