@@ -64,6 +64,7 @@ import io.mockk.verify
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.SerializationException
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -190,6 +191,28 @@ class BitwardenCredentialManagerTest {
         } returns null
 
         assertNull(bitwardenCredentialManager.getPasskeyAttestationOptionsOrNull(requestJson = ""))
+    }
+
+    @Test
+    fun `Passkey assertion options recognize constrained and discoverable PRF evaluation`() {
+        val format = Json { ignoreUnknownKeys = true }
+        val constrained = format.decodeFromString<PasskeyAssertionOptions>(
+            loadPrfRequestFixture(
+                name = "request-constrained-eval-by-credential.json",
+                includeEvalFallback = true,
+            ),
+        )
+        val discoverable = format.decodeFromString<PasskeyAssertionOptions>(
+            loadPrfRequestFixture(name = "request-discoverable-eval-first-second.json"),
+        )
+
+        assertTrue(constrained.evaluatesPrf)
+        assertEquals(1, constrained.allowCredentials?.size)
+        assertTrue(constrained.extensions?.prf?.eval != null)
+        assertEquals(1, constrained.extensions?.prf?.evalByCredential?.size)
+        assertTrue(discoverable.evaluatesPrf)
+        assertNull(discoverable.allowCredentials)
+        assertTrue(discoverable.extensions?.prf?.eval != null)
     }
 
     @Suppress("MaxLineLength")
@@ -645,6 +668,99 @@ class BitwardenCredentialManagerTest {
             )
         }
 
+    @Test
+    fun `authenticateFido2Credential passes constrained and discoverable PRF requests unchanged`() =
+        runTest {
+            val capturedRequests = mutableListOf<AuthenticateFido2CredentialRequest>()
+            val request = mockk<GetPublicKeyCredentialOption>()
+            val mockSdkResponse =
+                mockk<PublicKeyCredentialAuthenticatorAssertionResponse>(relaxed = true)
+            val prfOptions = createMockPasskeyAssertionOptions(
+                number = 1,
+                userVerificationRequirement = UserVerificationRequirement.DISCOURAGED,
+                extensions = createPrfExtensions(
+                    eval = PasskeyAssertionOptions.PrfValues(first = "opaque-eval"),
+                    evalByCredential = mapOf(
+                        "credential-id" to PasskeyAssertionOptions.PrfValues(
+                            first = "opaque-credential-first",
+                            second = "opaque-credential-second",
+                        ),
+                    ),
+                ),
+            )
+            bitwardenCredentialManager.isUserVerified = true
+            every { request.clientDataHash } returns byteArrayOf(1, 2, 3)
+            every {
+                json.decodeFromStringOrNull<PasskeyAssertionOptions>(any())
+            } returns prfOptions
+            coEvery {
+                mockVaultSdkSource.authenticateFido2Credential(
+                    request = capture(capturedRequests),
+                    fido2CredentialStore = any(),
+                )
+            } returns mockSdkResponse.asSuccess()
+
+            val providerRequests = listOf(
+                loadPrfRequestFixture(
+                    name = "request-constrained-eval-by-credential.json",
+                    includeEvalFallback = true,
+                ),
+                loadPrfRequestFixture(name = "request-discoverable-eval-first-second.json"),
+            )
+            providerRequests.forEach { requestJson ->
+                every { request.requestJson } returns requestJson
+                bitwardenCredentialManager.authenticateFido2Credential(
+                    userId = "activeUserId",
+                    request = request,
+                    selectedCipherView = createMockCipherView(number = 1),
+                    callingAppInfo = mockCallingAppInfo,
+                    origin = DEFAULT_WEB_ORIGIN.v1,
+                )
+            }
+
+            providerRequests
+                .map { """{"publicKey": $it}""" }
+                .zip(capturedRequests)
+                .forEach { (expected, actual) ->
+                    assertTrue(
+                        expected.encodeToByteArray().contentEquals(
+                            actual.requestJson.encodeToByteArray(),
+                        ),
+                        "SDK PRF request differs from provider input; contents redacted.",
+                    )
+                }
+        }
+
+    @Test
+    fun `authenticateFido2Credential fails closed when PRF evaluation lacks effective UV`() =
+        runTest {
+            every {
+                json.decodeFromStringOrNull<PasskeyAssertionOptions>(any())
+            } returns createMockPasskeyAssertionOptions(
+                number = 1,
+                extensions = createPrfExtensions(
+                    eval = PasskeyAssertionOptions.PrfValues(first = "opaque-eval"),
+                ),
+            )
+            bitwardenCredentialManager.isUserVerified = false
+
+            val result = bitwardenCredentialManager.authenticateFido2Credential(
+                userId = "activeUserId",
+                request = mockGetPublicKeyCredentialOption,
+                selectedCipherView = createMockCipherView(number = 1),
+                callingAppInfo = mockCallingAppInfo,
+                origin = DEFAULT_WEB_ORIGIN.v1,
+            )
+
+            assertEquals(Fido2CredentialAssertionResult.Error.InternalError, result)
+            coVerify(exactly = 0) {
+                mockVaultSdkSource.authenticateFido2Credential(
+                    request = any(),
+                    fido2CredentialStore = any(),
+                )
+            }
+        }
+
     @Suppress("MaxLineLength")
     @Test
     fun `authenticateFido2Credential should construct correct assertion request when calling app is unprivileged`() =
@@ -924,6 +1040,39 @@ class BitwardenCredentialManagerTest {
                 ),
             )
         }
+
+    @Test
+    fun `getUserVerificationRequirement makes PRF eval and evalByCredential require UV`() {
+        listOf(
+            createPrfExtensions(
+                eval = PasskeyAssertionOptions.PrfValues(first = "opaque-eval"),
+            ),
+            createPrfExtensions(
+                eval = PasskeyAssertionOptions.PrfValues(first = "opaque-fallback"),
+                evalByCredential = mapOf(
+                    "credential-id" to PasskeyAssertionOptions.PrfValues(
+                        first = "opaque-credential",
+                    ),
+                ),
+            ),
+        ).forEach { extensions ->
+            every {
+                json.decodeFromStringOrNull<PasskeyAssertionOptions>(any())
+            } returns createMockPasskeyAssertionOptions(
+                number = 1,
+                userVerificationRequirement = UserVerificationRequirement.DISCOURAGED,
+                extensions = extensions,
+            )
+
+            assertEquals(
+                UserVerificationRequirement.REQUIRED,
+                bitwardenCredentialManager.getUserVerificationRequirement(
+                    request = mockProviderGetCredentialRequest,
+                    fallbackRequirement = UserVerificationRequirement.DISCOURAGED,
+                ),
+            )
+        }
+    }
 
     @Suppress("MaxLineLength")
     @Test
@@ -1505,6 +1654,34 @@ private val DEFAULT_ANDROID_ORIGIN = Origin.Android(
     ),
 )
 private val DEFAULT_WEB_ORIGIN = Origin.Web("https://bitwarden.com")
+private fun loadPrfRequestFixture(
+    name: String,
+    includeEvalFallback: Boolean = false,
+): String {
+    val request = requireNotNull(
+        BitwardenCredentialManagerTest::class.java.getResource("/prf-conformance/$name"),
+    ) { "Missing PRF request fixture: $name" }
+        .readText()
+    if (!includeEvalFallback) return request
+
+    val requestWithFallback = request.replaceFirst(
+        oldValue = "\"prf\": {",
+        newValue = """"prf": { "eval": { "first": "bnVyaS1wcmYtc2FsdC12MQ" },""",
+    )
+    check(requestWithFallback != request) { "PRF fixture shape changed; contents redacted." }
+    return requestWithFallback
+}
+
+private fun createPrfExtensions(
+    eval: PasskeyAssertionOptions.PrfValues? = null,
+    evalByCredential: Map<String, PasskeyAssertionOptions.PrfValues>? = null,
+) = PasskeyAssertionOptions.AuthenticationExtensionsClientInputs(
+    prf = PasskeyAssertionOptions.PrfInputs(
+        eval = eval,
+        evalByCredential = evalByCredential,
+    ),
+)
+
 private const val DEFAULT_FIDO2_AUTH_REQUEST_JSON = """
 {
   "allowCredentials": [],
