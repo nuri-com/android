@@ -55,6 +55,8 @@ import java.time.ZoneOffset
  * Default date time used for [Instant] properties of mock objects.
  */
 private const val DEFAULT_TIMESTAMP = "2023-10-27T12:00:00Z"
+private const val SYNTHETIC_CIPHER_DATA =
+    """{"format_version":1,"wrapped_cek":"2.syntheticWrappedCek","envelope":"syntheticEnvelope"}"""
 private val FIXED_CLOCK: Clock = Clock.fixed(
     Instant.parse(DEFAULT_TIMESTAMP),
     ZoneOffset.UTC,
@@ -129,6 +131,50 @@ class VaultSdkCipherExtensionsTest {
         assertEquals(
             createMockSdkCipher(number = 1, clock = FIXED_CLOCK),
             sdkCipher,
+        )
+    }
+
+    @Test
+    fun `official cloud blob cipher should preserve data through SDK and network mappings`() {
+        val networkCipher = createMockCipher(number = 85).copy(
+            name = null,
+            login = null,
+            data = SYNTHETIC_CIPHER_DATA,
+        )
+
+        val sdkCipher = networkCipher.toEncryptedSdkCipher()
+        val request = sdkCipher.toEncryptedNetworkCipher(
+            encryptedFor = "mockEncryptedFor-85",
+        )
+        val response = sdkCipher.toEncryptedNetworkCipherResponse(
+            encryptedFor = "mockEncryptedFor-85",
+        )
+        val roundTripCipher = response.toEncryptedSdkCipher()
+
+        assertEquals(SYNTHETIC_CIPHER_DATA, sdkCipher.data)
+        assertEquals(SYNTHETIC_CIPHER_DATA, request.data)
+        assertEquals(SYNTHETIC_CIPHER_DATA, response.data)
+        assertEquals(SYNTHETIC_CIPHER_DATA, roundTripCipher.data)
+        assertNull(roundTripCipher.name)
+        assertNull(roundTripCipher.login)
+    }
+
+    @Test
+    fun `legacy structured cipher should preserve null data through mappings`() {
+        val networkCipher = createMockCipher(number = 86).copy(data = null)
+
+        val sdkCipher = networkCipher.toEncryptedSdkCipher()
+
+        assertNull(sdkCipher.data)
+        assertNull(
+            sdkCipher
+                .toEncryptedNetworkCipher(encryptedFor = "mockEncryptedFor-86")
+                .data,
+        )
+        assertNull(
+            sdkCipher
+                .toEncryptedNetworkCipherResponse(encryptedFor = "mockEncryptedFor-86")
+                .data,
         )
     }
 

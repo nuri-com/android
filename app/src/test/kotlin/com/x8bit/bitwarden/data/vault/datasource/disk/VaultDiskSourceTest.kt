@@ -111,6 +111,27 @@ class VaultDiskSourceTest {
     }
 
     @Test
+    fun `save and reload official cloud blob cipher should preserve data`() = runTest {
+        val cipher = createMockCipher(number = 85).copy(
+            name = null,
+            login = null,
+            data = SYNTHETIC_CIPHER_DATA,
+        )
+
+        vaultDiskSource.saveCipher(USER_ID, cipher)
+
+        val result = vaultDiskSource.getCipher(
+            userId = USER_ID,
+            cipherId = cipher.id,
+        )
+
+        assertEquals(cipher, result)
+        assertEquals(SYNTHETIC_CIPHER_DATA, result?.data)
+        assertNull(result?.name)
+        assertNull(result?.login)
+    }
+
+    @Test
     fun `getCiphersFlow should emit all CiphersDao updates`() = runTest {
         val cipherEntities = listOf(CIPHER_ENTITY)
         val ciphers = listOf(CIPHER_1)
@@ -483,6 +504,8 @@ class VaultDiskSourceTest {
 }
 
 private const val USER_ID: String = "test_user_id"
+private const val SYNTHETIC_CIPHER_DATA: String =
+    """{"format_version":1,"wrapped_cek":"2.syntheticWrappedCek","envelope":"syntheticEnvelope"}"""
 
 private val CIPHER_1: SyncResponseJson.Cipher = createMockCipher(1)
 private val COLLECTION_1: SyncResponseJson.Collection = createMockCollection(3)
