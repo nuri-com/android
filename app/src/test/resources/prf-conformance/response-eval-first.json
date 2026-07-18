@@ -1,0 +1,22 @@
+{
+  "id": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+  "rawId": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+  "type": "public-key",
+  "authenticatorAttachment": "platform",
+  "response": {
+    "clientDataJSON": "QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl8",
+    "authenticatorData": "YGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn8",
+    "signature": "gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp8",
+    "userHandle": "ICEiIyQlJicoKSorLC0uLw"
+  },
+  "clientExtensionResults": {
+    "credProps": {
+      "rk": true
+    },
+    "prf": {
+      "results": {
+        "first": "d8i94nf9OSyRco1LXP3wnUrRte5rCmguP3cURrj06go"
+      }
+    }
+  }
+}

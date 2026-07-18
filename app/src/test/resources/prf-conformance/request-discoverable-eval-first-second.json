@@ -1,0 +1,13 @@
+{
+  "challenge": "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8",
+  "rpId": "nuri.com",
+  "userVerification": "required",
+  "extensions": {
+    "prf": {
+      "eval": {
+        "first": "bnVyaS1wcmYtc2FsdC12MQ",
+        "second": "dGVzdC1zYWx0LTI"
+      }
+    }
+  }
+}
