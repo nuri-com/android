@@ -44,6 +44,8 @@ data class Fido2PublicKeyCredential(
     data class ClientExtensionResults(
         @SerialName("credProps")
         val credentialProperties: CredentialProperties?,
+        @SerialName("prf")
+        val prf: Prf?,
     ) {
         /**
          * Models the FIDO 2 credential properties provided by a client.
@@ -53,5 +55,25 @@ data class Fido2PublicKeyCredential(
             @SerialName("rk")
             val residentKey: Boolean?,
         )
+
+        /**
+         * Models WebAuthn PRF evaluation output for an assertion.
+         */
+        @Serializable
+        data class Prf(
+            @SerialName("results")
+            val results: Results,
+        ) {
+            /**
+             * Models the first required and optional second PRF outputs.
+             */
+            @Serializable
+            data class Results(
+                @SerialName("first")
+                val first: String,
+                @SerialName("second")
+                val second: String?,
+            )
+        }
     }
 }
