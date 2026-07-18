@@ -378,6 +378,7 @@ fun createMockFido2Credential(
     counter: String = "mockCounter-$number",
     discoverable: String = "mockDiscoverable-$number",
     creationDate: Instant = MOCK_INSTANT,
+    extensionState: String? = null,
 ): SyncResponseJson.Cipher.Fido2Credential =
     SyncResponseJson.Cipher.Fido2Credential(
         credentialId = credentialId,
@@ -393,6 +394,7 @@ fun createMockFido2Credential(
         counter = counter,
         discoverable = discoverable,
         creationDate = creationDate,
+        extensionState = extensionState,
     )
 
 /**

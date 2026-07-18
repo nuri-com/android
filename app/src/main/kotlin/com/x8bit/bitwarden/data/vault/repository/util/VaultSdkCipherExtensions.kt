@@ -389,6 +389,7 @@ private fun Fido2Credential.toNetworkFido2Credential() = SyncResponseJson.Cipher
     counter = counter,
     discoverable = discoverable,
     creationDate = creationDate,
+    extensionState = extensionState,
 )
 
 /**
@@ -524,6 +525,7 @@ private fun SyncResponseJson.Cipher.Fido2Credential.toSdkFido2Credential() = Fid
     counter = counter,
     discoverable = discoverable,
     creationDate = creationDate,
+    extensionState = extensionState,
 )
 
 /**

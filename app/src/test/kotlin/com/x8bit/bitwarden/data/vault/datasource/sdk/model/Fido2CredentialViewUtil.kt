@@ -7,7 +7,10 @@ import java.time.Instant
 /**
  * Creates a [Fido2CredentialView] instance for testing.
  */
-fun createMockFido2CredentialView(number: Int): Fido2CredentialView = Fido2CredentialView(
+fun createMockFido2CredentialView(
+    number: Int,
+    extensionState: String? = null,
+): Fido2CredentialView = Fido2CredentialView(
     credentialId = "mockCredentialId-$number",
     keyType = "mockKeyType-$number",
     keyAlgorithm = "mockKeyAlgorithm-$number",
@@ -21,6 +24,7 @@ fun createMockFido2CredentialView(number: Int): Fido2CredentialView = Fido2Crede
     userDisplayName = "mockUserDisplayName-$number",
     discoverable = "mockDiscoverable-$number",
     creationDate = Instant.parse("2023-10-27T12:00:00Z"),
+    extensionState = extensionState,
 )
 
 /**

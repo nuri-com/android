@@ -8,7 +8,9 @@ import com.bitwarden.network.model.SyncResponseJson
 import com.bitwarden.network.model.createMockCipher
 import com.bitwarden.network.model.createMockCollection
 import com.bitwarden.network.model.createMockDomains
+import com.bitwarden.network.model.createMockFido2Credential
 import com.bitwarden.network.model.createMockFolder
+import com.bitwarden.network.model.createMockLogin
 import com.bitwarden.network.model.createMockSend
 import com.bitwarden.network.model.createMockSyncResponse
 import com.x8bit.bitwarden.data.vault.datasource.disk.dao.FakeCiphersDao
@@ -78,6 +80,34 @@ class VaultDiskSourceTest {
         // So we split that off into its own assertion.
         assertEquals(CIPHER_ENTITY.copy(cipherJson = ""), storedCipherEntity.copy(cipherJson = ""))
         assertJsonEquals(CIPHER_ENTITY.cipherJson, storedCipherEntity.cipherJson)
+    }
+
+    @Test
+    fun `save and reload cipher should preserve encrypted FIDO2 extension state`() = runTest {
+        val extensionState = "2.mockEncryptedExtensionState-40"
+        val credential = createMockFido2Credential(
+            number = 40,
+            extensionState = extensionState,
+        )
+        val cipher = createMockCipher(
+            number = 40,
+            login = createMockLogin(
+                number = 40,
+                fido2Credentials = listOf(credential),
+            ),
+        )
+
+        vaultDiskSource.saveCipher(USER_ID, cipher)
+
+        val result = vaultDiskSource
+            .getCipher(userId = USER_ID, cipherId = cipher.id)
+            ?.login
+            ?.fido2Credentials
+            .orEmpty()
+            .single()
+
+        assertEquals(credential, result)
+        assertEquals(extensionState, result.extensionState)
     }
 
     @Test

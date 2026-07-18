@@ -1231,6 +1231,7 @@ data class SyncResponseJson(
          * @property counter The signature counter for the credential.
          * @property discoverable Whether the FIDO2 credential is discoverable or non-discoverable.
          * @property creationDate The creation date and time of the credential.
+         * @property extensionState Opaque encrypted FIDO2 extension state (nullable).
          */
         @Serializable
         data class Fido2Credential(
@@ -1273,6 +1274,9 @@ data class SyncResponseJson(
             @SerialName("creationDate")
             @Contextual
             val creationDate: Instant,
+
+            @SerialName("extensionState")
+            val extensionState: String? = null,
         )
     }
 
