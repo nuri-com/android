@@ -25,6 +25,7 @@ import java.time.Instant
  * @property key The key of the cipher (nullable).
  * @property archivedDate The archived date of the cipher (nullable).
  * @property encryptedFor ID of the user who the cipher is encrypted by.
+ * @property data The opaque encrypted cipher data (nullable).
  */
 @Serializable
 data class CipherJsonRequest(
@@ -95,4 +96,7 @@ data class CipherJsonRequest(
 
     @SerialName("encryptedFor")
     val encryptedFor: String?,
+
+    @SerialName("data")
+    val data: String? = null,
 )

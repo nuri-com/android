@@ -31,9 +31,13 @@ import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.mockwebserver.MockResponse
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -146,6 +150,42 @@ class CiphersServiceTest : BaseServiceTest() {
             CreateCipherResponseJson.Success(createMockCipher(number = 1)),
             result.getOrThrow(),
         )
+    }
+
+    @Test
+    fun `createCipher should serialize opaque cipher data at the top level`() = runTest {
+        server.enqueue(MockResponse().setBody(CREATE_RESTORE_UPDATE_CIPHER_SUCCESS_JSON))
+        val request = createMockCipherJsonRequest(number = 85).copy(
+            name = null,
+            login = null,
+            data = SYNTHETIC_CIPHER_DATA,
+        )
+
+        val result = ciphersService.createCipher(body = request)
+        val requestBody = server.takeRequest().body.readUtf8()
+        val requestJson = json.parseToJsonElement(requestBody).jsonObject
+
+        assertInstanceOf<CreateCipherResponseJson.Success>(result.getOrThrow())
+        assertEquals(SYNTHETIC_CIPHER_DATA, requestJson["data"]?.jsonPrimitive?.content)
+        assertFalse(requestJson.containsKey("name"))
+        assertFalse(requestJson.containsKey("login"))
+        assertFalse(requestBody.contains("extensionState"))
+    }
+
+    @Test
+    fun `createCipher should omit null data for legacy structured cipher`() = runTest {
+        server.enqueue(MockResponse().setBody(CREATE_RESTORE_UPDATE_CIPHER_SUCCESS_JSON))
+
+        val result = ciphersService.createCipher(
+            body = createMockCipherJsonRequest(number = 1).copy(data = null),
+        )
+        val requestJson = json
+            .parseToJsonElement(server.takeRequest().body.readUtf8())
+            .jsonObject
+
+        assertInstanceOf<CreateCipherResponseJson.Success>(result.getOrThrow())
+        assertFalse(requestJson.containsKey("data"))
+        assertTrue(requestJson.containsKey("login"))
     }
 
     @Test
@@ -458,6 +498,21 @@ class CiphersServiceTest : BaseServiceTest() {
     }
 
     @Test
+    fun `getCipher should decode official cloud blob cipher data`() = runTest {
+        server.enqueue(MockResponse().setBody(OFFICIAL_CLOUD_BLOB_CIPHER_JSON))
+
+        val result = assertInstanceOf<GetCipherResponse.Success>(
+            ciphersService.getCipher(cipherId = "blob-cipher-id").getOrThrow(),
+        )
+
+        val cipher = result.cipher
+        assertEquals("blob-cipher-id", cipher.id)
+        assertEquals(SYNTHETIC_CIPHER_DATA, cipher.data)
+        assertNull(cipher.name)
+        assertNull(cipher.login)
+    }
+
+    @Test
     fun `getSend with 404 should return the NotFound response`() = runTest {
         server.enqueue(MockResponse().setResponseCode(404))
         val result = ciphersService.getCipher("mockId-1")
@@ -694,6 +749,26 @@ private const val CREATE_ATTACHMENT_INVALID_JSON = """
 {
   "message": "You do not have permission.",
   "validationErrors": null
+}
+"""
+
+private const val SYNTHETIC_CIPHER_DATA =
+    """{"format_version":1,"wrapped_cek":"2.syntheticWrappedCek","envelope":"syntheticEnvelope"}"""
+
+private const val OFFICIAL_CLOUD_BLOB_CIPHER_JSON = """
+{
+  "organizationUseTotp": false,
+  "reprompt": 0,
+  "edit": false,
+  "revisionDate": "2023-10-27T12:00:00.00Z",
+  "type": 1,
+  "login": null,
+  "creationDate": "2023-10-27T12:00:00.00Z",
+  "name": null,
+  "id": "blob-cipher-id",
+  "viewPassword": false,
+  "favorite": false,
+  "data": "{\"format_version\":1,\"wrapped_cek\":\"2.syntheticWrappedCek\",\"envelope\":\"syntheticEnvelope\"}"
 }
 """
 

@@ -75,6 +75,7 @@ fun Cipher.toEncryptedNetworkCipher(
         passport = passport?.toEncryptedNetworkPassport(),
         archivedDate = archivedDate,
         encryptedFor = encryptedFor,
+        data = data,
     )
 
 /**
@@ -117,6 +118,7 @@ fun Cipher.toEncryptedNetworkCipherResponse(
         key = key,
         encryptedFor = encryptedFor,
         archivedDate = archivedDate,
+        data = data,
     )
 
 /**
@@ -491,7 +493,7 @@ fun SyncResponseJson.Cipher.toEncryptedSdkCipher(): Cipher =
         deletedDate = deletedDate,
         revisionDate = revisionDate,
         archivedDate = archivedDate,
-        data = null,
+        data = data,
     )
 
 /**

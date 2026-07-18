@@ -678,6 +678,7 @@ data class SyncResponseJson(
      * @property key The key of the cipher (nullable).
      * @property encryptedFor ID of the user who the cipher is encrypted by.
      * @property archivedDate The archived date of the cipher (nullable).
+     * @property data The opaque encrypted cipher data (nullable).
      */
     @Serializable
     data class Cipher(
@@ -774,6 +775,9 @@ data class SyncResponseJson(
         @SerialName("archivedDate")
         @Contextual
         val archivedDate: Instant?,
+
+        @SerialName("data")
+        val data: String? = null,
     ) {
         /**
          * Represents an attachment in the vault response.
