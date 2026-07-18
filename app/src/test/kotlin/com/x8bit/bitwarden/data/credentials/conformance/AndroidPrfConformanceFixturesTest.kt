@@ -19,7 +19,11 @@ class AndroidPrfConformanceFixturesTest {
     fun `constrained eval fixture preserves the raw first input and requires UV`() {
         val request = parseFixture("request-constrained-eval-first.json")
 
-        assertRequestEnvelope(request = request, constrained = true, requiresUv = true)
+        assertRequestEnvelope(
+            request = request,
+            constrained = true,
+            userVerification = "required",
+        )
         val prf = request.requiredPrf()
         assertFieldNames(prf, setOf("eval"), "extensions.prf")
         val eval = prf.requiredObject("eval", "extensions.prf")
@@ -35,7 +39,11 @@ class AndroidPrfConformanceFixturesTest {
     fun `discoverable eval fixture preserves raw first and second inputs and requires UV`() {
         val request = parseFixture("request-discoverable-eval-first-second.json")
 
-        assertRequestEnvelope(request = request, constrained = false, requiresUv = true)
+        assertRequestEnvelope(
+            request = request,
+            constrained = false,
+            userVerification = "required",
+        )
         val prf = request.requiredPrf()
         assertFieldNames(prf, setOf("eval"), "extensions.prf")
         val eval = prf.requiredObject("eval", "extensions.prf")
@@ -56,7 +64,11 @@ class AndroidPrfConformanceFixturesTest {
     fun `evalByCredential fixture binds first and second inputs to the allowed credential`() {
         val request = parseFixture("request-constrained-eval-by-credential.json")
 
-        assertRequestEnvelope(request = request, constrained = true, requiresUv = true)
+        assertRequestEnvelope(
+            request = request,
+            constrained = true,
+            userVerification = "required",
+        )
         val prf = request.requiredPrf()
         assertFieldNames(prf, setOf("evalByCredential"), "extensions.prf")
         val byCredential = prf.requiredObject("evalByCredential", "extensions.prf")
@@ -80,13 +92,24 @@ class AndroidPrfConformanceFixturesTest {
     }
 
     @Test
-    fun `non UV PRF fixture is explicitly invalid`() {
-        val request = parseFixture("request-non-uv-rejected.json")
+    fun `discouraged preference PRF fixture still requires effective UV`() {
+        val request = parseFixture("request-discouraged-effective-uv.json")
 
-        assertRequestEnvelope(request = request, constrained = false, requiresUv = false)
-        assertFalse(
-            request.isEffectiveUvPrfRequest(),
-            "PRF requests without effective UV must remain a fail-closed fixture",
+        assertRequestEnvelope(
+            request = request,
+            constrained = false,
+            userVerification = "discouraged",
+        )
+        assertTrue(
+            request.requiresEffectiveUvForPrf(),
+            "WebAuthn PRF must require effective UV regardless of the initial preference",
+        )
+        val eval = request.requiredPrf().requiredObject("eval", "extensions.prf")
+        assertFieldNames(eval, setOf("first"), "extensions.prf.eval")
+        assertRawInput(
+            encoded = eval.requiredString("first", "extensions.prf.eval"),
+            expected = NURI_FIRST_INPUT,
+            path = "extensions.prf.eval.first",
         )
     }
 
@@ -131,7 +154,7 @@ class AndroidPrfConformanceFixturesTest {
 private fun assertRequestEnvelope(
     request: JsonObject,
     constrained: Boolean,
-    requiresUv: Boolean,
+    userVerification: String,
 ) {
     val expectedFields = setOf("challenge", "rpId", "userVerification", "extensions")
         .let { if (constrained) it + "allowCredentials" else it }
@@ -148,7 +171,7 @@ private fun assertRequestEnvelope(
         path = "request.rpId",
     )
     assertRedactedEquals(
-        expected = if (requiresUv) "required" else "discouraged",
+        expected = userVerification,
         actual = request.requiredString("userVerification", "request"),
         path = "request.userVerification",
     )
@@ -302,9 +325,8 @@ private fun JsonObject.requiredPrfResults() =
         .requiredObject("prf", "clientExtensionResults")
         .requiredObject("results", "clientExtensionResults.prf")
 
-private fun JsonObject.isEffectiveUvPrfRequest() =
-    requiredString("userVerification", "request") == "required" &&
-        requiredObject("extensions", "request").containsKey("prf")
+private fun JsonObject.requiresEffectiveUvForPrf() =
+    requiredObject("extensions", "request").containsKey("prf")
 
 private fun JsonObject.requiredObject(field: String, path: String): JsonObject =
     this[field] as? JsonObject
