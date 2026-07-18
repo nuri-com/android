@@ -19,6 +19,7 @@ fun createMockPublicKeyAssertionResponse(number: Int) =
             credProps = CredPropsResult(
                 rk = true,
             ),
+            prf = null,
         ),
         response = AuthenticatorAssertionResponse(
             clientDataJson = byteArrayOf(0),
