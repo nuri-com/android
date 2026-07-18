@@ -13,6 +13,7 @@ fun createMockPasskeyAssertionOptions(
     userVerificationRequirement: UserVerificationRequirement =
         UserVerificationRequirement.PREFERRED,
     relyingPartyId: String? = "mockRpId-$number",
+    extensions: PasskeyAssertionOptions.AuthenticationExtensionsClientInputs? = null,
 ) = PasskeyAssertionOptions(
     challenge = "mockChallenge-$number",
     allowCredentials = listOf(
@@ -24,4 +25,5 @@ fun createMockPasskeyAssertionOptions(
     ),
     relyingPartyId = relyingPartyId,
     userVerification = userVerificationRequirement,
+    extensions = extensions,
 )

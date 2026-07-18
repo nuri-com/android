@@ -107,6 +107,12 @@ class BitwardenCredentialManagerImpl(
         selectedCipherView: CipherView,
         origin: String?,
     ): Fido2CredentialAssertionResult {
+        val assertionOptions = getPasskeyAssertionOptionsOrNull(request.requestJson)
+        if (assertionOptions?.evaluatesPrf == true && !isUserVerified) {
+            Timber.w("Refusing FIDO2 PRF evaluation without user verification.")
+            return Fido2CredentialAssertionResult.Error.InternalError
+        }
+
         val clientData = request.clientDataHash
             ?.let { ClientData.DefaultWithCustomHash(hash = it) }
             ?: ClientData.DefaultWithExtraData(androidPackageName = callingAppInfo.getAppOrigin())
@@ -132,7 +138,7 @@ class BitwardenCredentialManagerImpl(
                 request = AuthenticateFido2CredentialRequest(
                     userId = userId,
                     origin = sdkOrigin,
-                    requestJson = """{"publicKey": ${request.requestJson}}""",
+                    requestJson = request.requestJson.toSdkCredentialRequestJson(),
                     clientData = clientData,
                     selectedCipherView = selectedCipherView,
                     isUserVerificationSupported = true,
@@ -162,7 +168,13 @@ class BitwardenCredentialManagerImpl(
         .firstOrNull()
         ?.let { option ->
             getPasskeyAssertionOptionsOrNull(option.requestJson)
-                ?.userVerification
+                ?.let {
+                    if (it.evaluatesPrf) {
+                        UserVerificationRequirement.REQUIRED
+                    } else {
+                        it.userVerification
+                    }
+                }
         }
         ?: fallbackRequirement
 
@@ -444,6 +456,13 @@ class BitwardenCredentialManagerImpl(
             this.endsWith("/") -> "$this$DAL_ROUTE"
             else -> "$this/$DAL_ROUTE"
         }
+
+    /**
+     * Adds only the SDK's required outer request envelope. The assertion JSON is deliberately not
+     * parsed and serialized again: raw PRF values, including both evalByCredential and its eval
+     * fallback, must reach the shared SDK unchanged so it can select the credential-bound input.
+     */
+    private fun String.toSdkCredentialRequestJson(): String = """{"publicKey": $this}"""
 }
 
 private const val MAX_AUTHENTICATION_ATTEMPTS = 5
