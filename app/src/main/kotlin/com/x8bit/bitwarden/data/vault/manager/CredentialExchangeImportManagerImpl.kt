@@ -98,7 +98,7 @@ class CredentialExchangeImportManagerImpl(
 
         return vaultSdkSource
             .decryptCipher(userId = userId, cipher = cipher)
-            .flatMap { vaultSdkSource.encryptCipher(userId = userId, cipherView = it) }
+            .flatMap { vaultSdkSource.encryptCipherAsBlob(userId = userId, cipherView = it) }
             .mapCatching { context ->
                 check(!context.cipher.data.isNullOrEmpty()) {
                     "Blob-capable account required for portable passkey import"

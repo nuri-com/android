@@ -193,6 +193,14 @@ interface VaultSdkSource {
     ): Result<EncryptionContext>
 
     /**
+     * Explicitly blob-encrypts a personal cipher for portable credential import.
+     */
+    suspend fun encryptCipherAsBlob(
+        userId: String,
+        cipherView: CipherView,
+    ): Result<EncryptionContext>
+
+    /**
      * Decrypts a [Cipher] for the user with the given [userId], returning a [CipherView] wrapped
      * in a [Result].
      *

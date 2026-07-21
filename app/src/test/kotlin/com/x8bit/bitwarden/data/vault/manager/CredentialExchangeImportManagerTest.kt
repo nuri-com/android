@@ -221,7 +221,7 @@ class CredentialExchangeImportManagerTest {
                 vaultSdkSource.decryptCipher(DEFAULT_USER_ID, importedCipher)
             } returns createMockCipherView(number = 1).asSuccess()
             coEvery {
-                vaultSdkSource.encryptCipher(DEFAULT_USER_ID, any())
+                vaultSdkSource.encryptCipherAsBlob(DEFAULT_USER_ID, any())
             } returns createMockEncryptionContext(number = 2, cipher = blobCipher).asSuccess()
             val capturedRequest = slot<ImportCiphersJsonRequest>()
             coEvery {

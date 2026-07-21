@@ -313,6 +313,17 @@ class VaultSdkSourceImpl(
                 .encrypt(cipherView = cipherView)
         }
 
+    override suspend fun encryptCipherAsBlob(
+        userId: String,
+        cipherView: CipherView,
+    ): Result<EncryptionContext> =
+        runCatchingWithLogs {
+            getClient(userId = userId)
+                .vault()
+                .ciphers()
+                .encryptBlob(cipherView = cipherView)
+        }
+
     override suspend fun decryptCipher(
         userId: String,
         cipher: Cipher,
