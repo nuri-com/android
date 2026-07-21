@@ -3,6 +3,7 @@ package com.x8bit.bitwarden.data.vault.datasource.sdk.util
 import android.util.Base64
 import com.bitwarden.fido.AuthenticatorAttestationResponse
 import com.bitwarden.fido.ClientExtensionResults
+import com.bitwarden.fido.ClientPrfOutput
 import com.bitwarden.fido.CredPropsResult
 import com.bitwarden.fido.PublicKeyCredentialAuthenticatorAttestationResponse
 import com.bitwarden.fido.SelectedCredential
@@ -14,6 +15,7 @@ import io.mockk.unmockkStatic
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
@@ -66,6 +68,16 @@ class PublicKeyCredentialAuthenticatorAttestationResponseExtensionsTest {
         assert(result.clientExtensionResults.credentialProperties?.residentKey ?: false)
     }
 
+    @Test
+    fun `prf enabled should be populated when SDK value is non-null`() {
+        val result = createMockSdkAttestationResponse(
+            number = 1,
+            prf = ClientPrfOutput(enabled = true, results = null),
+        ).toAndroidAttestationResponse(callingPackageName = "")
+
+        assertTrue(result.clientExtensionResults.prf?.enabled!!)
+    }
+
     @Suppress("MaxLineLength")
     @Test
     fun `toAndroidAttestationResponse should build specific response when package name is Binance`() {
@@ -103,6 +115,7 @@ private fun createMockSdkAttestationResponse(
     number: Int,
     authenticatorAttachment: String? = null,
     credProps: CredPropsResult? = null,
+    prf: ClientPrfOutput? = null,
 ) = PublicKeyCredentialAuthenticatorAttestationResponse(
     id = "mockId-$number",
     rawId = byteArrayOf(0),
@@ -110,7 +123,7 @@ private fun createMockSdkAttestationResponse(
     authenticatorAttachment = authenticatorAttachment,
     clientExtensionResults = ClientExtensionResults(
         credProps = credProps,
-        prf = null,
+        prf = prf,
     ),
     response = AuthenticatorAttestationResponse(
         clientDataJson = byteArrayOf(0),

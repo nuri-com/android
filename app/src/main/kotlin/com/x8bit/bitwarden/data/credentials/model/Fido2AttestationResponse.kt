@@ -51,6 +51,8 @@ data class Fido2AttestationResponse(
     data class ClientExtensionResults(
         @SerialName("credProps")
         val credentialProperties: CredentialProperties? = null,
+        @SerialName("prf")
+        val prf: Prf? = null,
     ) {
         /**
          * Represents properties for newly created credential.
@@ -60,5 +62,27 @@ data class Fido2AttestationResponse(
             @SerialName("rk")
             val residentKey: Boolean,
         )
+
+        /**
+         * Models WebAuthn PRF extension output for a registration.
+         */
+        @Serializable
+        data class Prf(
+            @SerialName("enabled")
+            val enabled: Boolean?,
+            @SerialName("results")
+            val results: Results? = null,
+        ) {
+            /**
+             * Models the first required and optional second PRF outputs.
+             */
+            @Serializable
+            data class Results(
+                @SerialName("first")
+                val first: String,
+                @SerialName("second")
+                val second: String?,
+            )
+        }
     }
 }

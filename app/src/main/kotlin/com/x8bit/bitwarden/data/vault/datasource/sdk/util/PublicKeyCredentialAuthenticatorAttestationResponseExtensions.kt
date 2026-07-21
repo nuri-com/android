@@ -31,16 +31,27 @@ fun PublicKeyCredentialAuthenticatorAttestationResponse.toAndroidAttestationResp
         type = ty,
         rawId = rawId.base64EncodeForFido2Response(),
         response = registrationResponse,
-        clientExtensionResults = clientExtensionResults
-            .credProps
-            ?.rk
-            ?.let { residentKey ->
-                Fido2AttestationResponse.ClientExtensionResults(
-                    credentialProperties = Fido2AttestationResponse
+        clientExtensionResults = Fido2AttestationResponse.ClientExtensionResults(
+            credentialProperties = clientExtensionResults
+                .credProps
+                ?.rk
+                ?.let { residentKey ->
+                    Fido2AttestationResponse
                         .ClientExtensionResults
-                        .CredentialProperties(residentKey = residentKey),
+                        .CredentialProperties(residentKey = residentKey)
+                },
+            prf = clientExtensionResults.prf?.let { prf ->
+                Fido2AttestationResponse.ClientExtensionResults.Prf(
+                    enabled = prf.enabled,
+                    results = prf.results?.let { results ->
+                        Fido2AttestationResponse.ClientExtensionResults.Prf.Results(
+                            first = results.first.base64EncodeForFido2Response(),
+                            second = results.second?.base64EncodeForFido2Response(),
+                        )
+                    },
                 )
-            } ?: Fido2AttestationResponse.ClientExtensionResults(),
+            },
+        ),
         authenticatorAttachment = authenticatorAttachment,
     )
 }
