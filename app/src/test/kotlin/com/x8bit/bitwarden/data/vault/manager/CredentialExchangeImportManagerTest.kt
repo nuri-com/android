@@ -13,8 +13,11 @@ import com.bitwarden.policies.PolicyType
 import com.bitwarden.vault.Cipher
 import com.x8bit.bitwarden.data.platform.manager.PolicyManager
 import com.x8bit.bitwarden.data.vault.datasource.sdk.VaultSdkSource
+import com.x8bit.bitwarden.data.vault.datasource.sdk.model.createMockCipherView
+import com.x8bit.bitwarden.data.vault.datasource.sdk.model.createMockEncryptionContext
 import com.x8bit.bitwarden.data.vault.datasource.sdk.model.createMockPolicyView
 import com.x8bit.bitwarden.data.vault.datasource.sdk.model.createMockSdkCipher
+import com.x8bit.bitwarden.data.vault.datasource.sdk.model.createMockSdkFido2Credential
 import com.x8bit.bitwarden.data.vault.manager.model.ImportCxfPayloadResult
 import com.x8bit.bitwarden.data.vault.manager.model.SyncVaultDataResult
 import io.mockk.awaits
@@ -191,6 +194,52 @@ class CredentialExchangeImportManagerTest {
                     vaultSyncManager.syncForResult(forced = true)
                 }
             }
+
+        @Test
+        fun `portable passkey should upload as opaque blob`() = runTest {
+            val importedCipher = createMockSdkCipher(number = 1).let { cipher ->
+                cipher.copy(
+                    login = cipher.login?.copy(
+                        fido2Credentials = listOf(
+                            createMockSdkFido2Credential(
+                                number = 1,
+                                extensionState = "2.encryptedExtensionState",
+                            ),
+                        ),
+                    ),
+                )
+            }
+            val blobCipher = createMockSdkCipher(number = 2).copy(
+                data = "2.encryptedBlob",
+                name = null,
+                login = null,
+            )
+            coEvery {
+                vaultSdkSource.importCxf(DEFAULT_USER_ID, DEFAULT_ACCOUNT_JSON)
+            } returns listOf(importedCipher).asSuccess()
+            coEvery {
+                vaultSdkSource.decryptCipher(DEFAULT_USER_ID, importedCipher)
+            } returns createMockCipherView(number = 1).asSuccess()
+            coEvery {
+                vaultSdkSource.encryptCipher(DEFAULT_USER_ID, any())
+            } returns createMockEncryptionContext(number = 2, cipher = blobCipher).asSuccess()
+            val capturedRequest = slot<ImportCiphersJsonRequest>()
+            coEvery {
+                ciphersService.importCiphers(capture(capturedRequest))
+            } returns ImportCiphersResponseJson.Success.asSuccess()
+            coEvery {
+                vaultSyncManager.syncForResult(forced = true)
+            } returns SyncVaultDataResult.Success(itemsAvailable = true)
+
+            val result = importManager.importCxfPayload(DEFAULT_USER_ID, DEFAULT_PAYLOAD)
+
+            assertEquals(ImportCxfPayloadResult.Success(itemCount = 1), result)
+            with(capturedRequest.captured.ciphers.single()) {
+                assertEquals("2.encryptedBlob", data)
+                assertEquals(importedCipher.name, name)
+                assertEquals(null, login)
+            }
+        }
 
         @Test
         fun `when all steps succeed, should return Success`() = runTest {

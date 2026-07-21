@@ -23,8 +23,11 @@ jobs:
       - name: Setup Android Build
         uses: ./.github/actions/setup-android-build
 
-      - name: Test PRF registration mapping
-        run: ./gradlew :app:testStandardDebugUnitTest --tests '*PublicKeyCredentialAuthenticatorAttestationResponseExtensionsTest'
+      - name: Test portable passkey paths
+        run: |
+          ./gradlew :app:testStandardDebugUnitTest \
+            --tests '*PublicKeyCredentialAuthenticatorAttestationResponseExtensionsTest' \
+            --tests '*CredentialExchangeImportManagerTest'
 
       - name: Build standardDebug APK
         run: ./gradlew :app:assembleStandardDebug

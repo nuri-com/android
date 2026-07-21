@@ -60,12 +60,16 @@ class CredentialExchangeImportManagerImpl(
                 .importCxf(userId = userId, payload = accountJson)
                 .getOrElse { return ImportCxfPayloadResult.Error(error = it) }
         }
+        val uploadCiphers = allCiphers.map { cipher ->
+            preparePortablePasskeyForSync(userId = userId, cipher = cipher)
+                .getOrElse { return ImportCxfPayloadResult.Error(error = it) }
+        }
 
         // Filter out card ciphers if RESTRICT_ITEM_TYPES policy is active
         val filteredCipherList = if (policyManager.hasRestrictItemTypes()) {
-            allCiphers.filter { cipher -> cipher.type != CipherType.CARD }
+            uploadCiphers.filter { cipher -> cipher.type != CipherType.CARD }
         } else {
-            allCiphers
+            uploadCiphers
         }
 
         if (filteredCipherList.isEmpty()) {
@@ -78,6 +82,30 @@ class CredentialExchangeImportManagerImpl(
                 onSuccess = { it },
                 onFailure = { ImportCxfPayloadResult.Error(error = it) },
             )
+    }
+
+    /**
+     * The official server preserves portable PRF state only inside opaque Cipher.data blobs.
+     */
+    private suspend fun preparePortablePasskeyForSync(
+        userId: String,
+        cipher: Cipher,
+    ): Result<Cipher> {
+        val containsPortablePasskey = cipher.login?.fido2Credentials?.any {
+            it.extensionState != null
+        } == true
+        if (!containsPortablePasskey) return cipher.asSuccess()
+
+        return vaultSdkSource
+            .decryptCipher(userId = userId, cipher = cipher)
+            .flatMap { vaultSdkSource.encryptCipher(userId = userId, cipherView = it) }
+            .mapCatching { context ->
+                check(!context.cipher.data.isNullOrEmpty()) {
+                    "Blob-capable account required for portable passkey import"
+                }
+                // The import endpoint still validates the obsolete encrypted name field.
+                context.cipher.copy(name = context.cipher.name ?: cipher.name)
+            }
     }
 
     private suspend fun uploadCiphers(
