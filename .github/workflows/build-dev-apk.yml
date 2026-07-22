@@ -27,7 +27,8 @@ jobs:
         run: |
           ./gradlew :app:testStandardDebugUnitTest \
             --tests '*PublicKeyCredentialAuthenticatorAttestationResponseExtensionsTest' \
-            --tests '*CredentialExchangeImportManagerTest'
+            --tests '*CredentialExchangeImportManagerTest' \
+            --tests '*BitwardenCredentialManagerTest'
 
       - name: Build standardDebug APK
         run: ./gradlew :app:assembleStandardDebug

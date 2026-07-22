@@ -658,6 +658,20 @@ class VaultSdkSourceImpl(
         cipherViews.flatMap { fido2.decryptFido2AutofillCredentials(cipherView = it) }
     }
 
+    override suspend fun getFido2CredentialsForAutofill(
+        userId: String,
+        fido2CredentialStore: Fido2CredentialStore,
+    ): Result<List<Fido2CredentialAutofillView>> = runCatchingWithLogs {
+        getClient(userId)
+            .platform()
+            .fido2()
+            .authenticator(
+                userInterface = Fido2CredentialSearchUserInterfaceImpl(),
+                credentialStore = fido2CredentialStore,
+            )
+            .credentialsForAutofill()
+    }
+
     override suspend fun silentlyDiscoverCredentials(
         userId: String,
         fido2CredentialStore: Fido2CredentialStore,

@@ -1312,11 +1312,9 @@ class BitwardenCredentialManagerTest {
             )
 
             coEvery {
-                mockVaultSdkSource.silentlyDiscoverCredentials(
+                mockVaultSdkSource.getFido2CredentialsForAutofill(
                     userId = "mockUserId",
                     fido2CredentialStore = any(),
-                    relyingPartyId = "mockRpId-1",
-                    userHandle = null,
                 )
             } returns fido2CredentialAutofillViews.asSuccess()
             every {
@@ -1452,11 +1450,9 @@ class BitwardenCredentialManagerTest {
                 ),
             )
             coEvery {
-                mockVaultSdkSource.silentlyDiscoverCredentials(
+                mockVaultSdkSource.getFido2CredentialsForAutofill(
                     userId = "mockUserId",
                     fido2CredentialStore = any(),
-                    relyingPartyId = "mockRpId-1",
-                    userHandle = null,
                 )
             } returns fido2CredentialAutofillViews.asSuccess()
             every {
@@ -1574,11 +1570,9 @@ class BitwardenCredentialManagerTest {
                 ),
             )
             coEvery {
-                mockVaultSdkSource.silentlyDiscoverCredentials(
+                mockVaultSdkSource.getFido2CredentialsForAutofill(
                     userId = "mockUserId",
                     fido2CredentialStore = any(),
-                    relyingPartyId = "mockRpId-1",
-                    userHandle = null,
                 )
             } returns fido2CredentialAutofillViews.asSuccess()
             every {

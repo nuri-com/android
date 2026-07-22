@@ -263,23 +263,20 @@ class BitwardenCredentialManagerImpl(
                     .orEmpty()
             }
 
-        val discoveredCredentials = relyingPartyIds
-            .flatMap { relyingPartyId ->
-                vaultSdkSource
-                    .silentlyDiscoverCredentials(
-                        userId = userId,
-                        fido2CredentialStore = fido2CredentialStore,
-                        relyingPartyId = relyingPartyId,
-                        userHandle = null,
-                    )
-                    .fold(
-                        onSuccess = { it },
-                        onFailure = {
-                            Timber.e(it, "Failed to discover credentials.")
-                            emptyList()
-                        },
-                    )
-            }
+        val discoveredCredentials = vaultSdkSource
+            .getFido2CredentialsForAutofill(
+                userId = userId,
+                fido2CredentialStore = fido2CredentialStore,
+            )
+            .fold(
+                onSuccess = { credentials ->
+                    credentials.filter { it.rpId in relyingPartyIds }
+                },
+                onFailure = {
+                    Timber.e(it, "Failed to discover credentials.")
+                    emptyList()
+                },
+            )
             .filterAllowedCredentialsIfNecessary(allowedCredentials)
 
         return credentialEntryBuilder

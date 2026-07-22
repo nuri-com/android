@@ -499,6 +499,14 @@ interface VaultSdkSource {
     ): Result<List<Fido2CredentialAutofillView>>
 
     /**
+     * Returns FIDO 2 metadata for the Credential Manager picker without decrypting full ciphers.
+     */
+    suspend fun getFido2CredentialsForAutofill(
+        userId: String,
+        fido2CredentialStore: Fido2CredentialStore,
+    ): Result<List<Fido2CredentialAutofillView>>
+
+    /**
      * Silently discovers FIDO 2 credentials for a given [userId] and [relyingPartyId].
      *
      * @return A list of FIDO 2 credentials.
